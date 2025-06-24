@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>My Route App</title>
+
+        <script async defer
+            src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBS3BIoBiwTzCCsmNQ7tZlvMiq8sxzy-XE&libraries=geometry,directions&callback=initMap"></script>
+
+        <style>
+            :root {
+                --primary-color: #007bff;
+                --primary-hover: #0056b3;
+                --secondary-color: #6c757d;
+                --success-color: #28a745;
+                --danger-color: #dc3545;
+                --warning-color: #ffc107;
+                --info-color: #17a2b8;
+                --light-color: #f8f9fa;
+                --dark-color: #343a40;
+                --text-color: #333;
+                --border-radius: 8px;
+                --box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }
+
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                margin: 0;
+                padding: 0;
+                background-color: #e9ecef;
+                color: var(--text-color);
+            }
+
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+
+            h1 {
+                text-align: center;
+                margin-bottom: 20px;
+                color: var(--dark-color);
+            }
+
+            #map {
+                height: 60vh;
+                width: 100%;
+                border-radius: var(--border-radius);
+                box-shadow: var(--box-shadow);
+                margin-bottom: 20px;
+            }
+
+            .card {
+                background-color: #fff;
+                border-radius: var(--border-radius);
+                box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+                padding: 20px;
+                margin-bottom: 20px;
+            }
+
+            .controls-grid {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            @media (min-width: 768px) {
+                .controls-grid {
+                    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+                }
+            }
+
+            .address-inputs {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+
+            .address-inputs input[type="text"] {
+                flex-grow: 1;
+                padding: 12px;
+                border: 1px solid #ced4da;
+                border-radius: 4px;
+                min-width: 200px;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            }
+
+            .address-inputs input[type="text"]:focus {
+                border-color: var(--primary-color);
+                box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+                outline: none;
+            }
+
+            button {
+                padding: 12px 24px;
+                font-size: 16px;
+                cursor: pointer;
+                border: none;
+                border-radius: 5px;
+                background-color: var(--primary-color);
+                color: white;
+                transition: background-color 0.3s ease, transform 0.1s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+
+            button:hover {
+                background-color: var(--primary-hover);
+                transform: translateY(-1px);
+            }
+
+            button:disabled {
+                background-color: #ccc;
+                cursor: not-allowed;
+                transform: none;
+            }
+
+            .spinner {
+                width: 18px;
+                height: 18px;
+                border: 2px solid rgba(255, 255, 255, 0.3);
+                border-top-color: #fff;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                display: none; /* Hidden by default */
+            }
+
+            @keyframes spin {
+                to { transform: rotate(360deg); }
+            }
+
+            .results-container {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            @media (min-width: 992px) {
+                .results-container {
+                    grid-template-columns: 1fr 1fr;
+                }
+            }
+
+            .route-result {
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                border-left: 5px solid;
+            }
+
+            .route-result.astar-results { border-color: #FF6347; }
+            .route-result.google-results { border-color: #1A73E8; }
+
+            .route-result h3 {
+                margin-top: 0;
+                font-size: 1.25em;
+            }
+            .astar-results h3 { color: #FF6347; }
+            .google-results h3 { color: #1A73E8; }
+
+            .route-result p { margin: 8px 0; font-size: 1.1em; }
+            .route-result p strong { color: var(--dark-color); }
+            .route-select-buttons { margin-top: 20px; text-align: right; }
+            .route-select-buttons button {
+                background-color: var(--secondary-color);
+            }
+            .route-select-buttons button.selected {
+                background-color: var(--success-color);
+                font-weight: bold;
+            }
+
+            .message-box {
+                position: fixed;
+                top: 20px;
+                left: 50%;
+                transform: translateX(-50%);
+                background-color: var(--warning-color);
+                color: var(--text-color);
+                padding: 15px 25px;
+                border-radius: var(--border-radius);
+                box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+                z-index: 1000;
+                display: none;
+                font-size: 16px;
+                max-width: 90%;
+                box-sizing: border-box;
+                text-align: center;
+            }
+
+            .message-box.error { background-color: var(--danger-color); color: white; }
+            .message-box.info { background-color: var(--info-color); color: white; }
+            .message-box.success { background-color: var(--success-color); color: white; }
+
+
+            .location-display {
+                text-align: center;
+                padding: 15px;
+                background-color: var(--light-color);
+                border-radius: var(--border-radius);
+                margin-top: 20px;
+            }
+            .location-display p { margin: 5px 0; color: #555; }
+            .location-display #navigationStatus { font-weight: bold; color: var(--dark-color); }
+
+        </style>
+    </head>
+    <body>
+
+        <div class="container">
+            <h1>My Route App</h1>
+
+            <div class="card address-inputs">
+                <input type="text" id="startAddress" placeholder="Enter start or click map">
+                <input type="text" id="endAddress" placeholder="Enter destination or click map">
+                <button id="geocodeAndPlotBtn" onclick="geocodeAddresses()">Set Addresses</button>
+            </div>
+
+            <div class="card">
+                <div class="controls-grid">
+                    <button id="calculateRoutesBtn" onclick="calculateRoutes()" disabled>
+                        <span class="spinner" id="routeSpinner"></span>
+                        Find Routes
+                    </button>
+                    <button id="startTrackingBtn" onclick="startTracking()" disabled>Start My Location</button>
+                    <button id="stopTrackingBtn" onclick="stopTracking()" disabled>Stop Tracking</button>
+                    <button id="resetMapBtn" onclick="resetMap()">Clear Map</button>
+                </div>
+            </div>
+
+            <div id="map"></div>
+
+            <div class="results-container">
+                <div class="card route-result astar-results">
+                    <div>
+                        <h3>My A* Route</h3>
+                        <p><strong>Distance:</strong> <span id="astarDistance">--</span></p>
+                        <p><strong>Time:</strong> <span id="astarTime">--</span></p>
+                    </div>
+                    <div class="route-select-buttons">
+                        <button id="selectAstarBtn" onclick="selectRouteForTracking('astar')" disabled>Use This Route</button>
+                    </div>
+                </div>
+                <div class="card route-result google-results">
+                    <div>
+                        <h3>Google's Route</h3>
+                        <p><strong>Distance:</strong> <span id="googleDistance">--</span></p>
+                        <p><strong>Time:</strong> <span id="googleTime">--</span></p>
+                    </div>
+                    <div class="route-select-buttons">
+                        <button id="selectGoogleBtn" onclick="selectRouteForTracking('google')" disabled>Use This Route</button>
+                    </div>
+                </div>
+            </div>
+
+             <div class="location-display card">
+                <p><strong>My Spot:</strong> <span id="currentLat">--</span>, <span id="currentLng">--</span></p>
+                <p><strong>Status:</strong> <span id="navigationStatus">Waiting for input...</span></p>
+            </div>
+        </div>
+
+        <div id="messageBox" class="message-box"></div>
+
+        <script>
+            let map;
+            let geocoder;
+            let directionsService;
+            let googleDirectionsRenderer;
+            let startCoords = null;
+            let destinationCoords = null;
+            let startMarker = null;
+            let destinationMarker = null;
+            let myLocationMarker = null; // My live spot
+            let astarPolyline = null; // A* route line
+            let currentRouteChoice = null; // 'astar' or 'google'
+            let activeRouteLine = null; // The line I'm tracking
+            let locationTracker = null; // ID for my location watcher
+            const OFF_TRACK_DIST = 25; // How far off track is "off" (meters)
+
+            // Make time look nice
+            function formatTime(seconds) {
+                if (seconds === null || isNaN(seconds) || seconds < 0 || seconds === Infinity) return '--';
+                const minutes = Math.floor(seconds / 60);
+                const hours = Math.floor(minutes / 60);
+                const secs = Math.round(seconds % 60);
+                if (hours > 0) return `${hours} hr ${minutes % 60} min`;
+                if (minutes > 0) return `${minutes} min ${secs} sec`;
+                return `${secs} sec`;
+            }
+
+            // Make distance look nice
+            function formatDist(meters) {
+                if (meters === null || isNaN(meters) || meters < 0 || meters === Infinity) return '--';
+                if (meters >= 1000) return `${(meters / 1000).toFixed(2)} km`;
+                return `${meters.toFixed(0)} m`;
+            }
+
+            // Show a quick message
+            function showPopMessage(message, type = 'info', howLong = 5000) {
+                const msgBox = document.getElementById('messageBox');
+                msgBox.textContent = message;
+                msgBox.className = 'message-box'; // reset classes
+                msgBox.classList.add(type);
+                msgBox.style.display = 'block';
+                setTimeout(() => { msgBox.style.display = 'none'; }, howLong);
+            }
+
+            // Setup the map when page loads
+            function initMap() {
+                if (typeof google === 'undefined' || typeof google.maps === 'undefined') {
+                    console.error("Map not ready. Check API key/internet.");
+                    showPopMessage("ERROR: Map not loading. Check API key or internet.", 'error', 10000);
+                    document.getElementById("map").innerHTML = "<p style='color:red; text-align:center; padding-top: 50px;'>Map could not be loaded. Please ensure you have a valid API key and internet connection.</p>";
+                    document.querySelectorAll('button').forEach(btn => btn.disabled = true);
+                    return;
+                }
+
+                map = new google.maps.Map(document.getElementById("map"), {
+                    center: { lat: 30.3165, lng: 78.0322 }, // Dehradun
+                    zoom: 12,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                });
+
+                geocoder = new google.maps.Geocoder();
+                directionsService = new google.maps.DirectionsService();
+                googleDirectionsRenderer = new google.maps.DirectionsRenderer({
+                    suppressMarkers: true,
+                    polylineOptions: { strokeColor: '#4285F4', strokeOpacity: 0.8, strokeWeight: 5 }
+                });
+
+                if (navigator.geolocation) {
+                    const geoOpts = { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 };
+                    navigator.geolocation.getCurrentPosition(
+                        pos => {
+                            const mySpot = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                            map.setCenter(mySpot);
+                            map.setZoom(14);
+                            updateMyLocationMarker(mySpot, pos.coords.heading);
+                            document.getElementById('currentLat').textContent = mySpot.lat.toFixed(5);
+                            document.getElementById('currentLng').textContent = mySpot.lng.toFixed(5);
+                            showPopMessage("Your location found!", 'success', 3000);
+                        },
+                        error => {
+                            console.error("Init Geolocation failed:", error);
+                            let errMsg = "Couldn't get your location.";
+                            if (error.code === error.PERMISSION_DENIED) errMsg += " Permission denied.";
+                            else if (error.code === error.POSITION_UNAVAILABLE) errMsg += " Signal unavailable.";
+                            else if (error.code === error.TIMEOUT) errMsg += " Request timed out.";
+                            showPopMessage(errMsg + " Using default map center.", 'warning');
+                        },
+                        geoOpts
+                    );
+                } else {
+                    showPopMessage("Geolocation is not supported by this browser.", 'warning');
+                }
+
+                map.addListener("click", (e) => {
+                    const clickedLatLon = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+                    const addressField = !startCoords ? 'startAddress' : 'endAddress';
+                    document.getElementById(addressField).value = `Lat: ${clickedLatLon.lat.toFixed(5)}, Lng: ${clickedLatLon.lng.toFixed(5)}`;
+                     if (!startCoords) {
+                        setMarker(clickedLatLon, 'start');
+                        showPopMessage("Start point set. Click map for destination.", 'info');
+                    } else if (!destinationCoords) {
+                        setMarker(clickedLatLon, 'end');
+                        showPopMessage("Destination set. Click 'Find Routes'.", 'success');
+                    } else {
+                        showPopMessage("Start and End points are already set. Clear the map to set new points.", 'info');
+                    }
+                    checkButtons();
+                });
+            }
+
+            function setMarker(coords, type, draggable = true) {
+                if (type === 'start') {
+                    startCoords = coords;
+                    if (startMarker) startMarker.setMap(null);
+                    startMarker = new google.maps.Marker({ position: coords, map: map, title: "Start", label: "S", draggable: draggable });
+                    startMarker.addListener('dragend', (e) => {
+                        startCoords = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+                        document.getElementById('startAddress').value = `Lat: ${startCoords.lat.toFixed(5)}, Lng: ${startCoords.lng.toFixed(5)}`;
+                        if(destinationCoords) calculateRoutes();
+                    });
+                } else { // type === 'end'
+                    destinationCoords = coords;
+                    if (destinationMarker) destinationMarker.setMap(null);
+                    destinationMarker = new google.maps.Marker({ position: coords, map: map, title: "Destination", label: "D", draggable: draggable });
+                    destinationMarker.addListener('dragend', (e) => {
+                         destinationCoords = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+                         document.getElementById('endAddress').value = `Lat: ${destinationCoords.lat.toFixed(5)}, Lng: ${destinationCoords.lng.toFixed(5)}`;
+                         if(startCoords) calculateRoutes();
+                    });
+                }
+            }
+
+
+            // Turn address into Lat/Lng
+            function geocodeAddress(address, type) {
+                return new Promise((resolve, reject) => {
+                    if (!address.trim()) return resolve(); // Don't fail if one is empty
+                    geocoder.geocode({ 'address': address }, (results, status) => {
+                        if (status === 'OK') {
+                            const spot = results[0].geometry.location;
+                            const latLon = { lat: spot.lat(), lng: spot.lng() };
+                            setMarker(latLon, type);
+                            resolve();
+                        } else {
+                            reject(`Geocoding failed for ${type}: ${status}`);
+                        }
+                    });
+                });
+            }
+
+            // Convert text addresses to map points
+            async function geocodeAddresses() {
+                const startAddr = document.getElementById('startAddress').value;
+                const endAddr = document.getElementById('endAddress').value;
+
+                if (!startAddr && !endAddr) {
+                    showPopMessage("Please enter an address or click on the map.", 'warning');
+                    return;
+                }
+
+                showPopMessage("Locating addresses...", 'info', 2000);
+                try {
+                    await Promise.all([
+                        geocodeAddress(startAddr, 'start'),
+                        geocodeAddress(endAddr, 'end')
+                    ]);
+                     if (startCoords && destinationCoords) {
+                        showPopMessage("Addresses set. Ready to find routes.", 'success');
+                        map.fitBounds(new google.maps.LatLngBounds(startCoords, destinationCoords));
+                     }
+                } catch (error) {
+                    showPopMessage(error, 'error');
+                    console.error(error);
+                } finally {
+                    checkButtons();
+                }
+            }
+
+
+            function checkButtons() {
+                const readyToCalc = (startCoords && destinationCoords);
+                document.getElementById('calculateRoutesBtn').disabled = !readyToCalc;
+                document.getElementById('selectAstarBtn').disabled = true;
+                document.getElementById('selectGoogleBtn').disabled = true;
+                document.getElementById('startTrackingBtn').disabled = true;
+
+                if (currentRouteChoice) {
+                    document.getElementById(`select${currentRouteChoice === 'astar' ? 'Astar' : 'Google'}Btn`).classList.remove('selected');
+                }
+                 currentRouteChoice = null;
+                 activeRouteLine = null;
+                 setTrackingButtons(false);
+            }
+
+            function setTrackingButtons(isTracking) {
+                const canStart = !isTracking && activeRouteLine;
+                document.getElementById('startTrackingBtn').disabled = !canStart;
+                document.getElementById('stopTrackingBtn').disabled = isTracking;
+                // Disable route selection while tracking
+                document.getElementById('selectAstarBtn').disabled = isTracking || !astarPolyline;
+                document.getElementById('selectGoogleBtn').disabled = isTracking || !googleDirectionsRenderer.getDirections();
+            }
+
+            function toggleRouteSpinner(show) {
+                const spinner = document.getElementById('routeSpinner');
+                spinner.style.display = show ? 'inline-block' : 'none';
+                document.getElementById('calculateRoutesBtn').disabled = show;
+            }
+
+            async function calculateRoutes() {
+                if (!startCoords || !destinationCoords) {
+                    showPopMessage("Please set start and end points first.", 'warning');
+                    return;
+                }
+
+                showPopMessage("Calculating routes...", 'info');
+                clearAllRoutes();
+                stopTracking();
+                toggleRouteSpinner(true);
+
+                document.getElementById('astarDistance').textContent = 'Calculating...';
+                document.getElementById('astarTime').textContent = 'Calculating...';
+                document.getElementById('googleDistance').textContent = 'Calculating...';
+                document.getElementById('googleTime').textContent = 'Calculating...';
+                document.getElementById('navigationStatus').textContent = "Calculating routes...";
+
+                const startArray = [startCoords.lat, startCoords.lng];
+                const endArray = [destinationCoords.lat, destinationCoords.lng];
+
+                const astarPromise = fetch("/astar_route", {
+                    method: "POST",
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start: startArray, end: endArray }),
+                }).then(async response => {
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(`A* Error: ${response.status} ${errorData.error || response.statusText}`);
+                    }
+                    return response.json();
+                });
+
+                const googlePromise = new Promise((resolve, reject) => {
+                    const req = {
+                        origin: startCoords,
+                        destination: destinationCoords,
+                        travelMode: google.maps.TravelMode.DRIVING
+                    };
+                    directionsService.route(req, (result, status) => {
+                        if (status === 'OK') resolve(result);
+                        else reject(new Error(`Google Directions failed: ${status}`));
+                    });
+                });
+
+                const [astarResult, googleResult] = await Promise.allSettled([astarPromise, googlePromise]);
+
+                // Process A* Result
+                if (astarResult.status === 'fulfilled' && astarResult.value.path && astarResult.value.path.length > 0) {
+                    const { distance, time, path } = astarResult.value;
+                    document.getElementById('astarDistance').textContent = formatDist(distance);
+                    document.getElementById('astarTime').textContent = formatTime(time);
+                    const astarPathPoints = path.map(p => new google.maps.LatLng(p[0], p[1]));
+                    astarPolyline = new google.maps.Polyline({
+                        path: astarPathPoints, geodesic: true, strokeColor: '#FF6347',
+                        strokeOpacity: 0.8, strokeWeight: 5, map: map,
+                        zIndex: 1
+                    });
+                    document.getElementById('selectAstarBtn').disabled = false;
+                } else {
+                    document.getElementById('astarDistance').textContent = 'Not found';
+                    document.getElementById('astarTime').textContent = '--';
+                    document.getElementById('selectAstarBtn').disabled = true;
+                    const errorMsg = astarResult.reason ? astarResult.reason.message : "A* route not found.";
+                    showPopMessage(errorMsg, 'error');
+                    console.error("A* route error:", astarResult.reason);
+                }
+
+                // Process Google Result
+                if (googleResult.status === 'fulfilled') {
+                    const routeInfo = googleResult.value.routes[0].legs[0];
+                    document.getElementById('googleDistance').textContent = routeInfo.distance?.text ?? 'N/A';
+                    document.getElementById('googleTime').textContent = routeInfo.duration?.text ?? 'N/A';
+                    googleDirectionsRenderer.setDirections(googleResult.value);
+                    googleDirectionsRenderer.setMap(map);
+                    document.getElementById('selectGoogleBtn').disabled = false;
+                } else {
+                    document.getElementById('googleDistance').textContent = 'Error';
+                    document.getElementById('googleTime').textContent = '--';
+                    document.getElementById('selectGoogleBtn').disabled = true;
+                    showPopMessage(googleResult.reason.message, 'error');
+                    console.error("Google route error:", googleResult.reason);
+                }
+
+
+                const viewBounds = new google.maps.LatLngBounds();
+                if (astarPolyline) astarPolyline.getPath().forEach(point => viewBounds.extend(point));
+                if (googleResult.status === 'fulfilled') {
+                    googleResult.value.routes[0].overview_path.forEach(point => viewBounds.extend(point));
+                }
+                if (!viewBounds.isEmpty()) {
+                    map.fitBounds(viewBounds, 100); // Add padding
+                } else if(startCoords && destinationCoords) {
+                     map.fitBounds(new google.maps.LatLngBounds(startCoords, destinationCoords));
+                }
+
+                toggleRouteSpinner(false);
+                document.getElementById('navigationStatus').textContent = "Routes calculated. Please select one.";
+                showPopMessage("Routes found! Select a route to begin navigation.", 'success');
+            }
+
+            function selectRouteForTracking(routeType) {
+                currentRouteChoice = routeType;
+
+                if (astarPolyline) astarPolyline.setOptions({ zIndex: 1, strokeOpacity: 0.7, strokeWeight: 5, strokeColor: '#FF6347' });
+                if (googleDirectionsRenderer.getDirections()) googleDirectionsRenderer.setOptions({ zIndex: 1, polylineOptions: { strokeOpacity: 0.7, strokeWeight: 5, strokeColor: '#1A73E8' } });
+
+                document.getElementById('selectAstarBtn').classList.remove('selected');
+                document.getElementById('selectGoogleBtn').classList.remove('selected');
+
+                if (routeType === 'astar' && astarPolyline) {
+                    activeRouteLine = astarPolyline;
+                    astarPolyline.setOptions({ zIndex: 2, strokeOpacity: 1.0, strokeWeight: 8, strokeColor: '#CC0000' });
+                    document.getElementById('selectAstarBtn').classList.add('selected');
+                    showPopMessage("A* Route selected.", 'info');
+                } else if (routeType === 'google' && googleDirectionsRenderer.getDirections()) {
+                     activeRouteLine = new google.maps.Polyline({path: googleDirectionsRenderer.getDirections().routes[0].overview_path});
+                    googleDirectionsRenderer.setOptions({ zIndex: 2, polylineOptions: { strokeOpacity: 1.0, strokeWeight: 8, strokeColor: '#0047AB' } });
+                     document.getElementById('selectGoogleBtn').classList.add('selected');
+                    showPopMessage("Google Route selected.", 'info');
+                } else {
+                    showPopMessage("Selected route is not available.", 'error');
+                    activeRouteLine = null;
+                    currentRouteChoice = null;
+                }
+                 setTrackingButtons(false);
+                 document.getElementById('startTrackingBtn').disabled = !activeRouteLine;
+                 document.getElementById('navigationStatus').textContent = activeRouteLine ? `Ready to track ${routeType.toUpperCase()} route.` : "Route selection failed.";
+            }
+
+            function updateMyLocationMarker(latLng, heading) {
+                const googleLatLng = new google.maps.LatLng(latLng.lat, latLng.lng);
+                const icon = {
+                    path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW,
+                    scale: 7,
+                    fillColor: "#FF0000",
+                    fillOpacity: 0.9,
+                    strokeWeight: 2,
+                    strokeColor: "white",
+                    rotation: heading ?? 0
+                };
+
+                 if (myLocationMarker) {
+                    myLocationMarker.setPosition(googleLatLng);
+                    myLocationMarker.setIcon(icon);
+                } else {
+                    myLocationMarker = new google.maps.Marker({
+                        position: googleLatLng,
+                        map: map,
+                        title: "Your Location",
+                        icon: icon,
+                        zIndex: 9999
+                    });
+                }
+            }
+
+
+            function startTracking() {
+                if (!activeRouteLine) {
+                    showPopMessage("Please select a route before starting.", 'warning');
+                    return;
+                }
+
+                if (locationTracker !== null) {
+                    showPopMessage("Tracking is already active.", 'info');
+                    return;
+                }
+
+                const watchOpts = { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 };
+                locationTracker = navigator.geolocation.watchPosition(
+                    (position) => {
+                        const myLatLon = { lat: position.coords.latitude, lng: position.coords.longitude };
+                        const googleLatLon = new google.maps.LatLng(myLatLon.lat, myLatLon.lng);
+
+                        document.getElementById('currentLat').textContent = myLatLon.lat.toFixed(5);
+                        document.getElementById('currentLng').textContent = myLatLon.lng.toFixed(5);
+                        updateMyLocationMarker(myLatLon, position.coords.heading);
+                        // map.panTo(googleLatLon); // Option to keep map centered
+
+                        const onTrack = google.maps.geometry.poly.isLocationOnEdge(googleLatLon, activeRouteLine, 1e-4);
+
+                        if (onTrack) {
+                             document.getElementById('navigationStatus').textContent = "On Track";
+                             if (document.getElementById('messageBox').classList.contains('error')) {
+                                showPopMessage("Back on track!", 'success', 3000);
+                             }
+                        } else {
+                             document.getElementById('navigationStatus').textContent = "Off Track!";
+                             showPopMessage("You are off the selected route!", 'error', 10000);
+                        }
+                    },
+                    (error) => {
+                        console.error("Location tracking error:", error);
+                        document.getElementById('navigationStatus').textContent = "Location Error";
+                        showPopMessage(`Location Error: ${error.message}`, 'error');
+                        stopTracking();
+                    },
+                    watchOpts
+                );
+                showPopMessage("Live tracking started!", 'success');
+                setTrackingButtons(true);
+                document.getElementById('navigationStatus').textContent = "Tracking...";
+            }
+
+
+            function stopTracking() {
+                if (locationTracker !== null) {
+                    navigator.geolocation.clearWatch(locationTracker);
+                    locationTracker = null;
+                    showPopMessage("Tracking stopped.", 'info');
+                    document.getElementById('navigationStatus').textContent = "Tracking Stopped";
+                    setTrackingButtons(false);
+                }
+            }
+
+            function resetMap() {
+                stopTracking();
+                if (startMarker) { startMarker.setMap(null); startMarker = null; }
+                if (destinationMarker) { destinationMarker.setMap(null); destinationMarker = null; }
+                // Don't remove myLocationMarker, just update it.
+                clearAllRoutes();
+
+                startCoords = null;
+                destinationCoords = null;
+                currentRouteChoice = null;
+                activeRouteLine = null;
+
+                document.getElementById('startAddress').value = '';
+                document.getElementById('endAddress').value = '';
+                document.getElementById('astarDistance').textContent = '--';
+                document.getElementById('astarTime').textContent = '--';
+                document.getElementById('googleDistance').textContent = '--';
+                document.getElementById('googleTime').textContent = '--';
+                document.getElementById('navigationStatus').textContent = "Waiting for input...";
+                document.getElementById('selectAstarBtn').classList.remove('selected');
+                document.getElementById('selectGoogleBtn').classList.remove('selected');
+                checkButtons();
+
+                map.setCenter({ lat: 30.3165, lng: 78.0322 });
+                map.setZoom(12);
+
+                showPopMessage("Map has been cleared.", 'success');
+                console.log("Map reset.");
+            }
+
+            function clearAllRoutes() {
+                if (astarPolyline) { astarPolyline.setMap(null); astarPolyline = null; }
+                if (googleDirectionsRenderer) { googleDirectionsRenderer.set('directions', null); }
+                 document.getElementById('selectAstarBtn').disabled = true;
+                 document.getElementById('selectGoogleBtn').disabled = true;
+            }
+
+            document.addEventListener('DOMContentLoaded', () => {
+                checkButtons();
+                const inputs = document.querySelectorAll('.address-inputs input[type="text"]');
+                inputs.forEach(input => {
+                    input.addEventListener('keyup', (event) => {
+                        if(event.key === "Enter") {
+                           document.getElementById('geocodeAndPlotBtn').click();
+                        }
+                    });
+                });
+            });
+        </script>
+    </body>
+</html>
